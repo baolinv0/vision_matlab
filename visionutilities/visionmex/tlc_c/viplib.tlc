@@ -1,0 +1,10 @@
+%% FILE viplib.tlc
+%% 
+%% 
+%%
+%% Copyright 1995-2016 The MathWorks, Inc.
+%%
+
+%addincludepath "../../../../shared/dsp/vision/matlab/utilities/mex/tlc_c"
+%include "spclib.tlc"
+%include "spcfixptlib.tlc"

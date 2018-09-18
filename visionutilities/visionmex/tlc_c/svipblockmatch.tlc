@@ -1,0 +1,555 @@
+%% 
+%%  
+%% 
+%%
+%% Copyright 1995-2008 The MathWorks, Inc.
+%%
+%% Abstract: Block Matching S-function block for svipblockmatch.cpp
+%%
+
+%implements svipblockmatch "C"
+%include "viplib.tlc"
+
+%% Function: BlockTypeSetup ====================================================
+%function BlockTypeSetup(block, system) void
+  
+  %<Include_rt_header(block,"vipblockmatch_rt")>
+  %<ModifyBuildInfo("vipblks", "vipblockmatch", "vipblockmatch_rt.h", "", "", "")>
+  %<ModifyBuildInfo("vipblks", "vipblockmatch", "", "blockmatch_3step_mad_c_rt.c", "", "")>
+  %<ModifyBuildInfo("vipblks", "vipblockmatch", "", "blockmatch_3step_mad_d_rt.c", "", "")>
+  %<ModifyBuildInfo("vipblks", "vipblockmatch", "", "blockmatch_3step_mad_r_rt.c", "", "")>
+  %<ModifyBuildInfo("vipblks", "vipblockmatch", "", "blockmatch_3step_mad_z_rt.c", "", "")>
+  %<ModifyBuildInfo("vipblks", "vipblockmatch", "", "blockmatch_3step_mse_c_rt.c", "", "")>
+  %<ModifyBuildInfo("vipblks", "vipblockmatch", "", "blockmatch_3step_mse_d_rt.c", "", "")>
+  %<ModifyBuildInfo("vipblks", "vipblockmatch", "", "blockmatch_3step_mse_r_rt.c", "", "")>
+  %<ModifyBuildInfo("vipblks", "vipblockmatch", "", "blockmatch_3step_mse_z_rt.c", "", "")>
+  %<ModifyBuildInfo("vipblks", "vipblockmatch", "", "blockmatch_full_mad_c_rt.c", "", "")>
+  %<ModifyBuildInfo("vipblks", "vipblockmatch", "", "blockmatch_full_mad_d_rt.c", "", "")>
+  %<ModifyBuildInfo("vipblks", "vipblockmatch", "", "blockmatch_full_mad_r_rt.c", "", "")>
+  %<ModifyBuildInfo("vipblks", "vipblockmatch", "", "blockmatch_full_mad_z_rt.c", "", "")>
+  %<ModifyBuildInfo("vipblks", "vipblockmatch", "", "blockmatch_full_mse_c_rt.c", "", "")>
+  %<ModifyBuildInfo("vipblks", "vipblockmatch", "", "blockmatch_full_mse_d_rt.c", "", "")>
+  %<ModifyBuildInfo("vipblks", "vipblockmatch", "", "blockmatch_full_mse_r_rt.c", "", "")>
+  %<ModifyBuildInfo("vipblks", "vipblockmatch", "", "blockmatch_full_mse_z_rt.c", "", "")>
+  %<ModifyBuildInfo("vipblks", "vipblockmatch", "", "searchmethod_3step_mad_d_rt.c", "", "")>
+  %<ModifyBuildInfo("vipblks", "vipblockmatch", "", "searchmethod_3step_mad_r_rt.c", "", "")>
+  %<ModifyBuildInfo("vipblks", "vipblockmatch", "", "searchmethod_3step_mse_d_rt.c", "", "")>
+  %<ModifyBuildInfo("vipblks", "vipblockmatch", "", "searchmethod_3step_mse_r_rt.c", "", "")>
+  %<ModifyBuildInfo("vipblks", "vipblockmatch", "", "searchmethod_full_mad_d_rt.c", "", "")>
+  %<ModifyBuildInfo("vipblks", "vipblockmatch", "", "searchmethod_full_mad_r_rt.c", "", "")>
+  %<ModifyBuildInfo("vipblks", "vipblockmatch", "", "searchmethod_full_mse_d_rt.c", "", "")>
+  %<ModifyBuildInfo("vipblks", "vipblockmatch", "", "searchmethod_full_mse_r_rt.c", "", "")>
+
+%endfunction %% BlockTypeSetup
+
+%% Function: BlockInstanceSetup ===============================================
+%%
+%function BlockInstanceSetup(block, system) void
+  %% 
+  %<FixPt_Setup(block, system)>
+  %%
+  %assign INPORT_IMG_CURR = 0
+  %assign INPORT_IMG_PREV = 1
+  %%
+  %assign OUTPORT_VEL  = 0
+  %%
+  %assign inRows  = SFcnParamSettings.inRows
+  %assign inCols  = SFcnParamSettings.inCols
+  %%
+  %assign rowsPadImgC  = SFcnParamSettings.rowsPadImgC
+  %assign colsPadImgC  = SFcnParamSettings.colsPadImgC
+  %%
+  %assign rowsPadImgP  = SFcnParamSettings.rowsPadImgP
+  %assign colsPadImgP  = SFcnParamSettings.colsPadImgP
+  %%
+  
+  %assign needToPadCurrentImg = SFcnParamSettings.needToPadCurrentImg
+  %assign isFullSearch        = SFcnParamSettings.isFullSearch
+  %assign isMatchCriteriaMSE  = SFcnParamSettings.isMatchCriteriaMSE
+  %assign isOutMVcplx         = SFcnParamSettings.isOutMVcplx
+  %% 
+  %assign inDType = FixPt_GetOutputDataType(INPORT_IMG_CURR)
+  %assign isInportFltpt = FixPt_DataTypeIsFloat(inDType)
+  %%
+  %assign inDTypeID = LibBlockInputSignalDataTypeId(INPORT_IMG_CURR)
+  %assign inDTName  = LibBlockInputSignalDataTypeName(INPORT_IMG_CURR, "%<tRealPart>")
+  %%
+  %assign block = block + INPORT_IMG_CURR + INPORT_IMG_PREV + OUTPORT_VEL
+  %assign block = block + inRows + inCols
+  %assign block = block + rowsPadImgC + colsPadImgC
+  %assign block = block + rowsPadImgP + colsPadImgP
+  %assign block = block + isFullSearch + isMatchCriteriaMSE + isOutMVcplx + needToPadCurrentImg
+  %assign block = block + inDType + inDTypeID + inDTName + isInportFltpt 
+  %%
+%endfunction %% BlockInstanceSetup
+
+%%%%%%%%%%%%%%%%%%%%% 
+%% Function: Outputs ===========================================================
+%%
+%function Outputs(block, system) Output
+/* Computer Vision System Toolbox Block Matching (%<ParamSettings.FunctionName>) - '%<Name>' - Output */
+  %%
+  %if FixPt_DataTypeIsFloat(inDType)
+    %%
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    %% FLOATING POINT CODE GENERATION  %%
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    %%
+    {
+    %<FltPtRutimeFunctionCall(block)>
+    }
+    %%
+  %else
+    %%
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    %% FIXED-POINT CODE GENERATION     %%
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    %%
+    {
+    %<FixPtInlineCode(block)>
+    }
+    %%
+  %endif
+  %%
+%endfunction  %% Outputs    
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Subfunction: FixPtInlineCode
+%%
+%% FIXED POINT CODE GENERATION             
+%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%
+%function FixPtInlineCode(block) Output
+%% 
+    %%%%%%%%% Get labels
+    %if needToPadCurrentImg
+    %assign PaddedImgCLabel_oPj    = LibBlockDWork(PAD_IMGC_DWORK,"offsetIdxPadUcurr + idx_jj","","0")  %% get PaddedImgC_oPj = mPaddedImgC[offsetIdxPadUcurr + idx_jj]
+    %assign PaddedImgCLabel_roPr2  = LibBlockDWork(PAD_IMGC_DWORK,"rowOffsetCS+r2","","0")    %% get PaddedImgC_roPr2 = mPaddedImgC[rowOffsetCS+r2]
+    %assign PaddedImgCLabel_iPnPs  = LibBlockDWork(PAD_IMGC_DWORK,"idxCS+n+startIdxCS","","0")  %% get PaddedImgC_iPnPs = mPaddedImgC[idxCS+n+startIdxCS]
+    %else
+    %assign PaddedImgCLabel_oPj    = LibBlockInputSignal(INPORT_IMG_CURR,"offsetIdxPadUcurr + idx_jj","","0")  %% get PaddedImgC_oPj = mPaddedImgC[offsetIdxPadUcurr + idx_jj]
+    %assign PaddedImgCLabel_roPr2  = LibBlockInputSignal(INPORT_IMG_CURR,"rowOffsetCS+r2","","0")    %% get PaddedImgC_roPr2 = mPaddedImgC[rowOffsetCS+r2]
+    %assign PaddedImgCLabel_iPnPs  = LibBlockInputSignal(INPORT_IMG_CURR,"idxCS+n+startIdxCS","","0")  %% get PaddedImgC_iPnPs = mPaddedImgC[idxCS+n+startIdxCS]
+    %endif
+    %%
+    %assign PaddedImgPLabel_oPj    = LibBlockDWork(PAD_IMGP_DWORK,"offsetIdxPadUprev + idx_jj","","0")  %% get PaddedImgP_oPj = mPaddedImgP[offsetIdxPadUprev + idx_jj]
+    %assign PaddedImgPLabel_roPr2  = LibBlockDWork(PAD_IMGP_DWORK,"rowOffsetPB+r2","","0")    %% get PaddedImgP_roPr2 = mPaddedImgP[rowOffsetPB+r2]
+    %assign PaddedImgPLabel_iPs    = LibBlockDWork(PAD_IMGP_DWORK,"idxPB+startIdxPB","","0")  %% get PaddedImgP_iPnPs = mPaddedImgP[idxPB+startIdxPB]
+    %%
+    %assign InImgCurrLabel_oPj     = LibBlockInputSignal(INPORT_IMG_CURR, "offsetIdxU + idx_jj", "", 0)   %% get InImgCurr_oPj = mInImgCurr[offsetIdxU + idx_jj] 
+    %assign InImgPrevLabel_oPj     = LibBlockInputSignal(INPORT_IMG_PREV, "offsetIdxU + idx_jj", "", 0)   %% get InImgPrev_oPj = mInImgPrev[offsetIdxU + idx_jj] 
+    %%
+    %if (isOutMVcplx)
+    %assign OutMVLabelReal_i       = LibBlockOutputSignal(OUTPORT_VEL, "idx_ii", "", "%<tRealPart>0")   %% get OutMV_i = mOutMV[idx_ii] 
+    %assign OutMVLabelImag_i       = LibBlockOutputSignal(OUTPORT_VEL, "idx_ii", "", "%<tImagPart>0")   %% get OutMV_i = mOutMV[idx_ii] 
+    %else
+    %assign OutMVLabel_i           = LibBlockOutputSignal(OUTPORT_VEL, "idx_ii", "", 0)   %% get OutMV_i = mOutMV[idx_ii] 
+    %endif
+    
+    %%
+    %%%%%%%%% Get DTYPE
+    %assign InDT     = FixPt_GetInputDataType(INPORT_IMG_CURR)
+    %assign OutDT    = FixPt_GetOutputDataType(OUTPORT_VEL)
+    %%
+    %assign accDT     = FixPt_GetParameterDataType(ACC_DATA_TYPE, 0, 0)
+    %assign prodDT    = FixPt_GetParameterDataType(PROD_DATA_TYPE, 0, 0)
+    %assign int32DT   = FixPt_GetParameterDataType(INT32_DATA_TYPE, 0, 0)
+    %%
+    %%
+    %createrecord rndSatRec { roundingMode FixPtRoundingMode; ...
+                              overflowMode FixPtSaturationMode}
+    %%    
+    %createrecord PaddedImgCRec_oPj    { label PaddedImgCLabel_oPj;        dTypeRec  InDT;       isComplex 0 }
+    %createrecord PaddedImgCRec_roPr2  { label PaddedImgCLabel_roPr2;      dTypeRec  InDT;       isComplex 0 }
+    %createrecord PaddedImgCRec_iPnPs  { label PaddedImgCLabel_iPnPs;      dTypeRec  InDT;       isComplex 0 }
+    %%											 
+    %createrecord PaddedImgPRec_oPj    { label PaddedImgPLabel_oPj;        dTypeRec  InDT;       isComplex 0 }
+    %createrecord PaddedImgPRec_roPr2  { label PaddedImgPLabel_roPr2;      dTypeRec  InDT;       isComplex 0 }
+    %createrecord PaddedImgPRec_iPs    { label PaddedImgPLabel_iPs;        dTypeRec  InDT;       isComplex 0 }
+    %%											 
+    %createrecord InImgCurrRec_oPj     { label InImgCurrLabel_oPj;         dTypeRec  InDT;       isComplex 0 }
+    %createrecord InImgPrevRec_oPj     { label InImgPrevLabel_oPj;         dTypeRec  InDT;       isComplex 0 }
+    %%
+    %if (!isOutMVcplx)											 
+    %createrecord OutMVRec_i           { label OutMVLabel_i;               dTypeRec  OutDT;      isComplex %<isOutMVcplx> }
+    %endif
+    %%
+    %createrecord prodRec        { label "prod";              dTypeRec  prodDT;       isComplex 0 } 
+    %createrecord accRec         { label "acc";               dTypeRec  accDT;        isComplex 0 } 
+    %createrecord acc2Rec        { label "acc2";              dTypeRec  accDT;        isComplex 0 } 
+    %createrecord acc3Rec        { label "acc3";              dTypeRec  accDT;        isComplex 0 } 
+    %createrecord acc4Rec        { label "acc4";              dTypeRec  accDT;        isComplex 0 } 
+    %createrecord XInt32Rec      { label "XInt32";            dTypeRec  int32DT;      isComplex 0 }
+    %createrecord YInt32Rec      { label "YInt32";            dTypeRec  int32DT;      isComplex 0 }
+    %%
+    %assign accZeroValue = FixPt_GetGroundValueOrNameFromDataTypeRec(accDT, TLC_FALSE)
+    %assign boolDT       = DataTypes.DataType[tSS_BOOLEAN]
+    %%
+    %% Main Body of the program %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    %%    
+    int_T idx_ii, idx_jj;
+    int_T  c1, r1, dx, dy;
+%%%%%%%%%%%%%%%%% Begin: Create local variables %%%%%%%%%%%%%%%%%%%%%%%
+    %<accDT.Name> %<accRec.label>, %<acc2Rec.label>, %<acc3Rec.label>, %<acc4Rec.label> ;
+    %if (isMatchCriteriaMSE)
+    %<prodDT.Name> %<prodRec.label>;
+    %endif
+    %<int32DT.Name> %<XInt32Rec.label>;
+    %if (isOutMVcplx)
+     %<int32DT.Name> %<YInt32Rec.label>;
+    %endif
+%%%%%%%%%%%%%%%%% End: Create local variables %%%%%%%%%%%%%%%%%%%%%%%
+    int32_T *mBlockSize    = (int32_T *)%<LibBlockParameterAddr(BLOCKSIZE_RTP,"","",0)>;
+    int32_T *mOverlapSize  = (int32_T *)%<LibBlockParameterAddr(OVERLAPPING_RTP,"","",0)>;
+    int32_T *mMaxDisplSize = (int32_T *)%<LibBlockParameterAddr(MAXDISPL_RTP,"","",0)>;
+    %%   
+    const int_T blkHeightY = mBlockSize[0]; %% [rows=Height(y)     cols=width(x)]
+    const int_T blkWidthX  = mBlockSize[1]; 
+    %%
+    const int_T yOverlap   = mOverlapSize[0];   
+    const int_T xOverlap   = mOverlapSize[1];
+    %%
+    const int_T maxDY      = mMaxDisplSize[0];
+    const int_T maxDX      = mMaxDisplSize[1];
+    %%      
+    const int_T xPadLside = xOverlap/2; /* padding at left */
+    const int_T yPadTside = yOverlap/2; /* padding at top  */
+    %%
+    const int_T xIncr = blkWidthX  - xOverlap;
+    const int_T yIncr = blkHeightY - yOverlap;
+    %%
+    const int_T searchRegionWidthX  = blkWidthX  + 2*maxDX;
+    const int_T searchRegionHeightY = blkHeightY + 2*maxDY;   
+    %%
+    const int_T startXpadImgP = maxDX+xPadLside;
+    const int_T startYpadImgP = maxDY+yPadTside;
+   
+    int_T offsetIdxU, offsetIdxPadUprev;
+    %if (needToPadCurrentImg) %% mNeedPadding
+    {
+        /* copy input (uImgCurr) to dwork (paddedImgC) and pad in all sides */
+        %%
+        int_T offsetIdxPadUcurr;
+        %% mPaddedImgC.resetAll();
+        memset((byte_T *)%<LibBlockDWorkAddr(PAD_IMGC_DWORK,"","",0)>,0,%<rowsPadImgC*colsPadImgC>*sizeof(%<inDTName>));
+        offsetIdxPadUcurr = xPadLside*%<rowsPadImgC> + yPadTside;
+        %%        
+        offsetIdxU = 0;
+        for (idx_ii=0; idx_ii< %<inCols>; idx_ii++) 
+        {
+            %% memcpy(tmpC, tmpU, bytesPerInputCol);
+            for (idx_jj=0; idx_jj< %<inRows>; idx_jj++) 
+            {
+                %<DSPFixptLibEquals(PaddedImgCRec_oPj, InImgCurrRec_oPj, rndSatRec)> %% mPaddedImgC[offsetIdxPadUcurr + idx_jj] = mInImgCurr[offsetIdxU + idx_jj];\
+            }
+            offsetIdxPadUcurr += %<rowsPadImgC>;
+            offsetIdxU += %<inRows>;
+        }
+    }
+    %endif   
+   
+    /* copy input (uImgPrev) to dwork (paddedImgP) and pad in all sides */
+    %%
+    %% mPaddedImgP.resetAll();
+    memset((byte_T *)%<LibBlockDWorkAddr(PAD_IMGP_DWORK,"","",0)>,0,%<rowsPadImgP*colsPadImgP>*sizeof(%<inDTName>));
+    offsetIdxPadUprev = startXpadImgP*%<rowsPadImgP> + startYpadImgP;
+    offsetIdxU = 0;
+    for (idx_ii=0; idx_ii< %<inCols>; idx_ii++) 
+    {
+        %% memcpy(tmpP, tmpU, bytesPerInputCol);
+        for (idx_jj=0; idx_jj< %<inRows>; idx_jj++) 
+        {
+            %<DSPFixptLibEquals(PaddedImgPRec_oPj, InImgPrevRec_oPj, rndSatRec)> %% mPaddedImgP[offsetIdxPadUprev + idx_jj] = mInImgPrev[offsetIdxU + idx_jj];\
+        }
+        offsetIdxPadUprev += %<rowsPadImgP>;
+        offsetIdxU += %<inRows>;
+    }
+    %%
+    idx_ii=0; 
+    %%
+    for (c1 = startXpadImgP; c1 < %<colsPadImgP>-startXpadImgP-xIncr+1; c1 += xIncr) 
+    {
+        int_T colIdx = c1-startXpadImgP;
+        int_T offsetIdxImgC = colIdx * %<rowsPadImgC>;
+        int_T offsetIdxImgP = colIdx * %<rowsPadImgP>;
+
+        for (r1 = startYpadImgP; r1 < %<rowsPadImgP>-startYpadImgP-yIncr+1; r1 += yIncr)
+        {
+            int_T rowIdx = r1-startYpadImgP;
+            %%
+            %% tmpC = &paddedImgC[offsetIdxImgC + rowIdx];
+            %% tmpP = &paddedImgP[offsetIdxImgP + rowIdx];
+            int_T xIdx=0, yIdx=0;
+            %%
+            %%
+            int_T startIdxCS = offsetIdxImgC + rowIdx; 
+			int_T startIdxPB = offsetIdxImgP + rowIdx; 
+			%assign rowsImgCS = "%<rowsPadImgC>"
+			%assign rowsImgPB = "%<rowsPadImgP>"
+			%assign blkCSWidthX  = "blkWidthX"
+			%assign blkCSHeightY = "blkHeightY"
+			%assign blkPBWidthX  = "searchRegionWidthX"
+			%assign blkPBHeightY = "searchRegionHeightY"
+            %%
+            %%
+            %if (isFullSearch)
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% Start: SearchMethod_Full_MSE %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%            
+             {                 
+				int_T xEnd = %<blkPBWidthX>  - %<blkCSWidthX>  +1; /* 2*maxDX+1 */
+				int_T yEnd = %<blkPBHeightY> - %<blkCSHeightY> +1; /* 2*maxDY+1 */
+				int_T x,y, c2,r2;
+				boolean_T firstIter = 1;
+				%<acc2Rec.label> = %<accZeroValue>;
+                                
+                                for (x=0; x<xEnd;x++)
+				{
+					int_T rowOffsetAll =   x*%<rowsImgPB> + startIdxPB; 
+					for (y=0; y<yEnd; y++) 
+					{
+						int_T tmpIdxPB = rowOffsetAll + y; 
+						%<accRec.label> = %<accZeroValue>; %% mAccProd[0].reset();
+						for (c2=0; c2< %<blkCSWidthX>;c2++)
+						{
+							int_T rowOffsetCS =  c2*%<rowsImgCS> + startIdxCS;
+							int_T rowOffsetPB =  c2*%<rowsImgPB> + tmpIdxPB;
+							for (r2=0; r2< %<blkCSHeightY>; r2++) 
+							{
+								%<DSPFixptLibEquals(acc3Rec, PaddedImgCRec_roPr2, rndSatRec)> %%mAccProd3[0] = mPaddedImgC[rowOffsetCS+r2];\
+								%%mAccProd3[0] -= mPaddedImgP[rowOffsetPB+r2]; (do it in two steps to avoid warning in codegen)
+								%<DSPFixptLibEquals(acc4Rec, PaddedImgPRec_roPr2, rndSatRec)> %%mAccProd4[0] = mPaddedImgP[rowOffsetPB+r2];\
+								%<DSPFixptLibMinusEquals(acc3Rec, acc4Rec, rndSatRec)> %%mAccProd3[0] -= mAccProd4[0];\  
+						            
+								%if (isMatchCriteriaMSE) %%(mWhichMatchCriteria == BM_MSE)
+									%<DSPFixptLibEquals(acc4Rec, acc3Rec, rndSatRec)> %%mAccProd4[0] = mAccProd3[0];
+									%% %<DSPFixptLibTimesEquals(acc4Rec, acc3Rec, rndSatRec)> %%mAccProd4[0] *= mAccProd3[0];\
+									%% do it in two steps to use prod data type
+							        %<DSPFixptLibTimes( prodRec, acc4Rec, acc3Rec, rndSatRec)> %% mProd[0] = mAccProd4[0] * mAccProd3[0];\
+							        %<DSPFixptLibEquals(acc4Rec, prodRec, rndSatRec)> %% mAccProd4[0] = mProd[0];\
+								%else
+                                                                  %%(mAccProd3[0].isNegative())
+                                                                  %if FixPt_DataTypeIsMultiWord(accDT)
+                                                                  {
+                                                                    %<boolDT.NativeType> acc3IsNegative;
+                                                                    %<FixPt_MultiWordCompLT("acc3IsNegative", boolDT, acc3Rec.label, accDT, accZeroValue, accDT, "Simplest", "Saturate")>\
+                                                                    if (acc3IsNegative) {
+                                                                      %% mAccProd4[0] = -mAccProd3[0];
+                                                                      %<acc4Rec.label> = %<accZeroValue>;
+                                                                      %<DSPFixptLibMinusEquals(acc4Rec, acc3Rec, rndSatRec)>
+                                                                  %else
+                                                                    %% SINGLE-WORD
+                                                                    if (%<acc3Rec.label> < %<accZeroValue>) {
+                                                                      %<acc4Rec.label> = -%<acc3Rec.label>; %% mAccProd4[0] = -mAccProd3[0];
+                                                                  %endif
+                                                                    %% COMMON CODE
+                                                                    } else {
+                                                                      %<DSPFixptLibEquals(acc4Rec, acc3Rec, rndSatRec)> %%mAccProd4[0] = mAccProd3[0];
+                                                                    }
+                                                                  %if FixPt_DataTypeIsMultiWord(accDT)
+                                                                  }
+                                                                  %endif
+								%endif
+								%<DSPFixptLibPlusEquals(accRec, acc4Rec, rndSatRec)> %%mAccProd[0] += mAccProd4[0];\
+							}
+						}
+						if (firstIter)
+						{
+                                                  %<DSPFixptLibEquals(acc2Rec, accRec, rndSatRec)> %%mAccProd2[0] = mAccProd[0];\
+                                                  firstIter = 0;
+						}
+						else
+                                                {
+                                                  %% (mAccProd[0]<mAccProd2[0])
+                                                  %if FixPt_DataTypeIsMultiWord(accDT)
+                                                    %<boolDT.NativeType> isAccLTAcc2;
+                                                    %<FixPt_MultiWordCompLT("isAccLTAcc2", boolDT, accRec.label, accDT, acc2Rec.label, accDT, "Simplest", "Saturate")>\
+                                                    if (isAccLTAcc2)
+                                                  %else
+                                                    %% SINGLE-WORD
+                                                    if (%<accRec.label> < %<acc2Rec.label>)
+                                                  %endif
+                                                  {
+                                                    %<DSPFixptLibEquals(acc2Rec, accRec, rndSatRec)> %%mAccProd2[0]=mAccProd[0];\
+                                                    xIdx = x;
+                                                    yIdx = y;
+                                                  }
+						}
+					}
+				}
+			}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% End: SearchMethod_Full_MSE %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%                        
+            %else
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% Start: SearchMethod_3Step_MSE %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% 
+			{
+				const int_T endRowIdx = %<blkPBHeightY>-%<blkCSHeightY>+1;
+				const int_T endColIdx = %<blkPBWidthX> -%<blkCSWidthX> +1;
+				%% 
+				int_T p;
+				int_T flag = 0;
+				int_T midIdxR = endRowIdx/2;
+				int_T midIdxC = endColIdx/2;
+				int_T range = MIN(midIdxR,midIdxC);
+				%%
+				int_T delta = (int_T)(range/2) + 1;
+				%<acc3Rec.label> = %<accZeroValue>; %% mAccProd3[0].reset();
+				while (delta > 0) {
+				int_T iy = MAX((midIdxC - delta),0);
+				int_T ix = MAX((midIdxR - delta),0);
+				int_T colPts = 3;
+				p = iy;
+				while (colPts--) {
+					int_T rowPts = 3;
+					int_T q = ix;
+					while (rowPts--) {
+					%% 
+					int_T idxCol_PB = %<rowsImgPB>*p; 
+					int_T idxCS = 0;
+					int_T m;
+					%<acc2Rec.label> = %<accZeroValue>; %% mAccProd2[0].reset();
+					for (m = 0; m < %<blkCSWidthX>; m++) {
+						int_T n;
+						for (n = 0; n < %<blkCSHeightY>; n++) {
+						int_T idxPB = q + n + idxCol_PB;  
+						%<DSPFixptLibEquals(acc4Rec, PaddedImgPRec_iPs, rndSatRec)> %% mAccProd4[0] = mPaddedImgP[idxPB+startIdxPB];\
+						%%mAccProd4[0] -= mPaddedImgC[idxCS+n+startIdxCS]; (to avoid codegen warning write it in two steps)
+						%<DSPFixptLibEquals(accRec, PaddedImgCRec_iPnPs, rndSatRec)> %% mAccProd[0] = mPaddedImgC[idxCS+n+startIdxCS];\
+						%<DSPFixptLibMinusEquals(acc4Rec, accRec, rndSatRec)> %% mAccProd4[0] -= mAccProd[0]\
+						%%
+						%if (isMatchCriteriaMSE) %% (mWhichMatchCriteria == BM_MSE)
+							%<DSPFixptLibEquals(accRec, acc4Rec, rndSatRec)> %%mAccProd[0] = mAccProd4[0];\
+							%% %<DSPFixptLibTimesEquals(accRec, acc4Rec, rndSatRec)> %%mAccProd[0] *= mAccProd4[0];\
+							%% do it in two steps to use prod data type
+							%<DSPFixptLibTimes( prodRec, accRec, acc4Rec, rndSatRec)> %% mProd[0] = mAccProd[0] * mAccProd4[0];\
+							%<DSPFixptLibEquals(accRec, prodRec, rndSatRec)> %% mAccProd[0] = mProd[0];\
+						%else
+                                                  %% (mAccProd4[0].isNegative())
+                                                  %if FixPt_DataTypeIsMultiWord(accDT)
+                                                  {
+                                                    %<boolDT.NativeType> acc4IsNegative;
+                                                    %<FixPt_MultiWordCompLT("acc4IsNegative", boolDT, acc4Rec.label, accDT, accZeroValue, accDT, "Simplest", "Saturate")>\
+                                                    if (acc4IsNegative) {
+                                                  %else
+                                                    %% SINGLE-WORD
+                                                    if (%<acc4Rec.label> < %<accZeroValue>) {
+                                                  %endif
+                                                    %% COMMON CODE
+                                                      %% mAccProd[0] = -mAccProd4[0];
+                                                      %<accRec.label> = %<accZeroValue>;
+                                                      %<DSPFixptLibMinusEquals(accRec, acc4Rec, rndSatRec)>
+                                                    } else {
+                                                      %%mAccProd[0] = mAccProd4[0];
+                                                      %<DSPFixptLibEquals(accRec, acc4Rec, rndSatRec)>
+                                                    }
+                                                  %if FixPt_DataTypeIsMultiWord(accDT)
+                                                  }
+                                                  %endif
+						%endif
+
+						/* accumulate sum of absolute differences */
+						%<DSPFixptLibPlusEquals(acc2Rec, accRec, rndSatRec)> %%mAccProd2[0] +=  mAccProd[0];\  
+						}
+						idxCS += %<rowsImgCS>;
+						idxCol_PB += %<rowsImgPB>;  
+					}
+					/* Store the new minimum and get the corresponding indices. */
+					if (flag == 0) {
+						%<DSPFixptLibEquals(acc3Rec, acc2Rec, rndSatRec)> %%mAccProd3[0] = mAccProd2[0];\ 
+						yIdx = q;
+						xIdx = p;
+						flag = 1;
+					} else {
+                                          %%  (mAccProd2[0] < mAccProd3[0])
+                                          %if FixPt_DataTypeIsMultiWord(accDT)
+                                            %<boolDT.NativeType> isAcc2LTAcc3;
+                                            %<FixPt_MultiWordCompLT("isAcc2LTAcc3", boolDT, acc2Rec.label, accDT, acc3Rec.label, accDT, "Simplest", "Saturate")>\
+                                            if (isAcc2LTAcc3) {
+                                          %else
+                                            if (%<acc2Rec.label> < %<acc3Rec.label>) {
+                                          %endif
+                                              %<DSPFixptLibEquals(acc3Rec, acc2Rec, rndSatRec)> %%mAccProd3[0] = mAccProd2[0];\
+                                              yIdx = q;
+                                              xIdx = p;
+                                            }
+					}
+					q += delta;
+					while ((rowPts > 0) && (q >= endRowIdx)) q--;
+					}
+					p += delta;
+					while ((colPts > 0) && (p >= endColIdx)) p--;
+				}
+				midIdxC = xIdx;
+				midIdxR = yIdx;
+				delta--;
+				}
+			}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% End: SearchMethod_3Step_MSE %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%                                        
+            %endif
+            %%
+            %if (isOutMVcplx)
+                dx = xIdx-maxDX;
+                dy = yIdx-maxDY;
+                %<XInt32Rec.label> = dx; %% mXint32[0] = dx;
+                %<YInt32Rec.label> = dy; %% mYint32[0] = dy;
+                %% mOutMV[idx_ii++].complexEquals(mXint32[0],mYint32[0]);  %% mOutMV[idx_ii] = dx + sqrt(-1)*dy; 
+                %% mOutMV[idx_ii].re = mXint32[0];   
+                %<FixPt_Fix2FixAlwaysOutput(OutMVLabelReal_i, OutDT, XInt32Rec.label, int32DT, FixPtRoundingMode, FixPtSaturationMode)>\
+                %% mOutMV[idx_ii].im = mYint32[0];
+                %<FixPt_Fix2FixAlwaysOutput(OutMVLabelImag_i, OutDT, YInt32Rec.label, int32DT, FixPtRoundingMode, FixPtSaturationMode)>\
+                idx_ii++;
+            %else
+                dx = xIdx-maxDX;
+                dy = yIdx-maxDY;
+                %<XInt32Rec.label> =  dx*dx + dy*dy; %% mXint32[0] = dx*dx + dy*dy;\
+                %<DSPFixptLibEquals(OutMVRec_i, XInt32Rec, rndSatRec)> %% mOutMV[idx_ii++] = mXint32[0];\
+                idx_ii++; 
+            %endif
+        }
+    }
+%endfunction    %%FixPtInlineCode
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Subfunction: FltPtRutimeFunctionCall
+%%
+%% FLOATING POINT CODE GENERATION (RUN TIME FUNCTION CALL)          
+%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%
+%function FltPtRutimeFunctionCall(block) Output
+%%
+%%Call run-time function based on data type and ftype
+     %if isOutMVcplx
+         %assign DText = (inDTypeID == tSS_SINGLE)? "C" : "Z"
+         %assign outDText =  "c"
+     %else
+         %assign DText = (inDTypeID == tSS_SINGLE)? "R" : "D"
+         %assign outDText =  ""
+     %endif
+     %assign outDTname =  "%<outDText>%<inDTName>"
+     %%
+     %assign SearchMethodName  = isFullSearch ? "Full" : "3Step"
+     %assign MatchCriteriaName = isMatchCriteriaMSE ? "MSE" : "MAD"
+     MWVIP_BlockMatching_%<SearchMethodName>_%<MatchCriteriaName>_%<DText>( 
+        (const %<inDTName>*)%<LibBlockInputSignalAddr(INPORT_IMG_CURR, "", "", 0)>, 
+        (const %<inDTName>*)%<LibBlockInputSignalAddr(INPORT_IMG_PREV, "", "", 0)>,
+        %if (needToPadCurrentImg)
+        (%<inDTName>*)%<LibBlockDWorkAddr(PAD_IMGC_DWORK,"","",0)>,
+        %else
+        (%<inDTName>*)%<LibBlockInputSignalAddr(INPORT_IMG_CURR, "", "", 0)>,
+        %endif
+        (%<inDTName>*)%<LibBlockDWorkAddr(PAD_IMGP_DWORK,"","",0)>,
+        (%<outDTname>*)%<LibBlockOutputSignalAddr(OUTPORT_VEL, "", "", 0)>, 
+        (int32_T *)%<LibBlockParameterAddr(BLOCKSIZE_RTP,"","",0)>,
+        (int32_T *)%<LibBlockParameterAddr(OVERLAPPING_RTP,"","",0)>,
+        (int32_T *)%<LibBlockParameterAddr(MAXDISPL_RTP,"","",0)>,
+        %<inRows>,
+        %<inCols>,
+        %<rowsPadImgC>,
+        %<colsPadImgC>,
+        %<rowsPadImgP>,
+        %<colsPadImgP>     
+             );
+%endfunction   %% FltPtRutimeFunctionCall
+
+    
+%% [EOF] svipblockmatch.tlc

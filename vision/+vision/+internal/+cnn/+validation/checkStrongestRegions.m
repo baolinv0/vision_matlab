@@ -1,0 +1,9 @@
+function checkStrongestRegions(N, name)
+if isinf(N)
+    % OK, use all regions.
+else
+    validateattributes(N, ...
+        {'numeric'},...
+        {'scalar', 'real', 'positive', 'integer', 'nonempty', 'finite', 'nonsparse'}, ...
+        name, 'NumStrongestRegions');
+end

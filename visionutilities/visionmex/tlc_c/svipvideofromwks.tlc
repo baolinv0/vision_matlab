@@ -1,0 +1,104 @@
+%% svipvideofromwks.tlc
+%% Abstract: TLC for Video processing Blockset Video from Workspace block
+%%
+%% Copyright 1995-2004 The MathWorks, Inc.
+%%  
+
+%implements svipvideofromwks "C"
+
+%% Function: BlockInstanceSetup ================================================
+%%
+%function BlockInstanceSetup(block, system) void
+    %assign dims = SFcnParamSettings.Dims
+    %assign isND = SFcnParamSettings.OutND
+    %assign numports  = isND ? 1 : dims[2]
+    %assign imagePlanes = isND ? dims[2] : 1 
+    %assign dtypesize = "sizeof(%<LibBlockOutputSignalDataTypeName(0, "")>)"
+    %assign finalvalues = SFcnParamSettings.FinalValue
+    %assign SET_TO_ZERO = 1
+    %assign HOLD_FINAL = 2
+    %assign CYCLIC = 3
+
+    %assign block = block + numports + dims + dtypesize + finalvalues + imagePlanes
+    %assign block = block + SET_TO_ZERO + HOLD_FINAL + CYCLIC
+%endfunction %% BlockInstanceSetup
+
+%% Function: Start =============================================================
+%%
+%function Start(block, system) Output
+  /* Video Processing Blockset Video to Workspace
+  (%<ParamSettings.FunctionName>) - '%<Name>' */
+  {
+    %assign testvec = SFcnParamSettings.Data 
+    %assign testvecname = ""
+    %openfile genBuffer
+    %assign wksnonfiniteindices = %<GENERATE_FORMATTED_VALUE(testvec, testvecname)>
+    %closefile genBuffer
+    %assign dType = LibBlockOutputSignalDataTypeName(0, "")
+    static %<dType> pDataValues[] = %<genBuffer>;
+    %<LibBlockDWork(DATA_PTR, "", "", 0)> = pDataValues;
+    %<LibBlockDWork(CUR_FRAME, "", "", 0)> = -1;
+  }
+%endfunction
+
+%% Function: Outputs ===========================================================
+%%
+%function Outputs(block, system) Output
+  /* Video Processing Blockset Video to Workspace
+     (%<ParamSettings.FunctionName>) - '%<Name>' */
+  {
+    int8_T *dataptr = (int8_T *)%<LibBlockDWork(DATA_PTR, "", "", 0)>;
+
+    (%<LibBlockDWork(CUR_FRAME, "", "", 0)>) ++;
+    %% order of end of data checks is different for set_to_zero is different
+    %% to avoid extra if checks
+    %if finalvalues == SET_TO_ZERO
+        if (%<LibBlockDWork(CUR_FRAME, "", "", 0)> < %<dims[3]>) {
+            %<dataCopyCode(block, system)>
+        } else {
+            %<frameCheckCode(block, system)>
+        }
+    %else
+        if (%<LibBlockDWork(CUR_FRAME, "", "", 0)> >= %<dims[3]>) {
+            %<frameCheckCode(block, system)>
+        }
+        %<dataCopyCode(block, system)>
+    %endif
+  }
+%endfunction  %% Outputs
+
+
+%% Function: dataCopyCode ======================================================
+%%
+%% Produces code for copying data to output ports
+%function dataCopyCode(block, system) Output
+  %assign dataptr = LibBlockDWork(DATA_PTR, "", "", 0)
+  %assign framesize = dims[0] * dims[1]
+  %assign framesize3d = framesize * dims[2]
+    dataptr += %<LibBlockDWork(CUR_FRAME, "", "", 0)> * %<framesize3d>*%<dtypesize>;
+    %foreach port = numports
+        %assign outptr = "%<LibBlockOutputSignalAddr(port, "", "", 0)>"
+        memcpy(%<outptr>, dataptr, %<framesize*imagePlanes>*%<dtypesize>);
+        dataptr += %<framesize>*%<dtypesize>;
+    %endforeach
+%endfunction
+
+%% Function: frameCheckCode ====================================================
+%%
+%% Check whether we reached end of data and resets appropriately
+%function frameCheckCode(block, system) Output
+    %if finalvalues == CYCLIC
+      %<LibBlockDWork(CUR_FRAME, "", "", 0)> = 0;
+    %elseif finalvalues == HOLD_FINAL
+      %<LibBlockDWork(CUR_FRAME, "", "", 0)> = %<dims[3]>-1;
+    %else
+      %assign framesize = dims[0] * dims[1]
+      %foreach port = numports
+         %assign outptr = "%<LibBlockOutputSignalAddr(port, "", "", 0)>"
+         memset(%<outptr>, 0, %<framesize*imagePlanes>*%<dtypesize>);
+      %endforeach
+    %endif
+%endfunction
+
+%% [EOF] svipvideofromwks.tlc
+

@@ -1,0 +1,13 @@
+<productinfo>
+
+<matlabrelease>R2015a</matlabrelease>
+<name>Computer Vision System</name>
+<type>toolbox</type>
+<icon>$toolbox/matlab/icons/matlabicon.gif</icon>
+<help_location>$docroot/toolbox/vision</help_location>
+<preference_panel>
+  <label>Computer Vision System Toolbox</label>
+  <source>com.mathworks.toolbox.vision.VipblksPrefsPanel</source>
+</preference_panel>
+
+</productinfo>

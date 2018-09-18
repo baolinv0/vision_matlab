@@ -1,0 +1,958 @@
+%% 
+%% 	
+%% 
+%%
+%% Copyright 1995-2008 The MathWorks, Inc.
+%%
+%% Abstract: 2D SAD
+
+%implements svip2dsad "C"
+
+%include "viplib.tlc"
+
+%% Function: BlockInstanceSetup ===============================================
+%% Abstract:
+%%   Pre-code generation work
+%%
+%function BlockInstanceSetup(block, system) void
+  %%
+  %% All fixed-point blocks call the fixed-point setup function
+  %%
+  %<FixPt_Setup(block, system)>
+  %%
+  %assign isROI       = SFcnParamSettings.IsROI
+  %assign outMinIndx  = SFcnParamSettings.OutMinIndx
+  %assign outNearbyVal= SFcnParamSettings.OutNearbyVal
+  %assign sizeNearbyMtrx = SFcnParamSettings.SizeNearbyRows
+  %assign halfSizeNearbyMtrx = SFcnParamSettings.HalfSizeNearbyRows
+  %%
+  %% Sum or product parameter
+  %%
+  %assign INPORT_A    = 0
+  %assign OUTPORT   = 0
+  %assign dtypeA     = LibBlockInputSignalDataTypeName(INPORT_A,"")
+  %assign widthA     = LibBlockInputSignalWidth(INPORT_A)
+  %assign numInDimsA = LibBlockInputSignalNumDimensions(INPORT_A)
+  %assign inputDimsA = LibBlockInputSignalDimensions(INPORT_A)
+  %assign rowsA      = inputDimsA[0]
+  %assign colsA      = (numInDimsA == 2) ? inputDimsA[1] : 1  %% Treat unoriented input as col vector
+  %assign scalarA    = (rowsA*colsA == 1)
+  %assign inDT_A      = FixPt_GetInputDataType(INPORT_A)
+  %assign outDT       = FixPt_GetOutputDataType(0)
+  %assign cplxA      = LibBlockInputSignalIsComplex(INPORT_A)
+  %assign logSearchParam = SFcnParamSettings.LogSearch 
+  %assign performLogSearch = logSearchParam && outMinIndx
+  %assign block = block + INPORT_A + OUTPORT + rowsA + colsA \
+                        +  dtypeA + inDT_A + outDT + cplxA + performLogSearch + scalarA \
+                        + isROI + outMinIndx + outNearbyVal + halfSizeNearbyMtrx + sizeNearbyMtrx
+
+  %assign INPORT_B   = 1
+  %assign cplxB      = LibBlockInputSignalIsComplex(INPORT_B)
+  %assign dtypeB     = LibBlockInputSignalDataTypeName(INPORT_B,"")
+  %assign widthB     = LibBlockInputSignalWidth(INPORT_B)
+  %assign numInDimsB = LibBlockInputSignalNumDimensions(INPORT_B)
+  %assign inputDimsB = LibBlockInputSignalDimensions(INPORT_B)
+  %assign rowsB      = inputDimsB[0]
+  %assign colsB      = (numInDimsB == 2) ? inputDimsB[1] : 1  %% Treat unoriented input as col vector
+  %assign inDT_B     = FixPt_GetInputDataType(INPORT_B)
+  %assign strmx = (isROI && outMinIndx) ? "-x" : ""
+  %assign strmy = (isROI && outMinIndx) ? "-y" : ""
+  %assign strpx = (isROI && outMinIndx) ? "+x" : ""
+  %assign strpy = (isROI && outMinIndx) ? "+y" : ""	
+  %assign strx  = (isROI && outMinIndx) ? "x"  : 0
+  %assign stry  = (isROI && outMinIndx) ? "y"  : "0"
+  %assign numRowsYFull        = rowsA - rowsB + 1     %% Number of rows when the output is 'full' size. 
+  %assign numColsYFull        = colsA - colsB + 1     %% Number of columns when the output is 'full' size. 
+  %assign strEndRowIdx = (isROI && outMinIndx) ? "endRowIdx"  : numRowsYFull
+  %assign strEndColIdx = (isROI && outMinIndx) ? "endColIdx"  : numColsYFull
+  %assign needPForLoop = ((isROI && outMinIndx) || (numColsYFull > 1))
+  %assign needQForLoop = ((isROI && outMinIndx) || (numRowsYFull > 1))
+  %assign isOutScalar  = (numRowsYFull*numColsYFull == 1)
+  %assign block    = block + INPORT_B + rowsB + colsB  + cplxB + dtypeB + inDT_B \
+                           + strmx + strmy + strpx + strpy + strx + stry \
+                           + numRowsYFull + numColsYFull + strEndRowIdx + strEndColIdx \
+                           + needPForLoop + needQForLoop + isOutScalar
+%%
+%endfunction
+
+
+%% Function: Outputs ==========================================================
+%%
+%function Outputs(block, system) Output
+  /* Video Processing Blockset 2D SAD (%<ParamSettings.FunctionName>) - '%<Name>' */
+  %if (dtypeA == "boolean_T")
+        %% Subfunction: BoolInlineCode
+        %% BOOLEAN CODE GENERATION             
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        %%
+        {
+        %<BoolInlineCode(block)>
+        }
+  %else
+    %if FixPt_DataTypeIsFloat(inDT_A)
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        %% FLOATING POINT CODE GENERATION             %%
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        {
+        %<FltPtInlineCode(block)>
+        }
+    %else
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        %% FIXED-POINT CODE GENERATION                %%
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        {
+        %<FixPtInlineCode(block)>
+        }
+    %endif
+  %endif    
+%endfunction
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Subfunction: BoolInlineCode
+%%
+%% BOOLEAN CODE GENERATION             
+%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%
+%function BoolInlineCode(block) Output
+%%
+%createrecord rndSatRec { roundingMode FixPtRoundingMode; ...
+                          overflowMode FixPtSaturationMode}
+%assign accumDT    = FixPt_GetParameterDataType(ACC_DATA_TYPE, 0, 0)
+%assign holdDT     = FixPt_GetParameterDataType(HOLD_DATA_TYPE, 0, 0)
+%%
+%% create accRec record
+    %createrecord accumRec2 { label     "accum"; ...
+                                dTypeRec    accumDT; ...
+                                isComplex   0; ...
+                                dTypeName   accumDT.Name }
+    %createrecord accumRec3 { label     "accum1"; ...
+                                dTypeRec    accumDT; ...
+                                isComplex   0; ...
+                                dTypeName   accumDT.Name }
+%% create holdIntRec record
+    %createrecord holdIntRec { label       "holdInt"; ...
+                                dTypeRec    holdDT; ...
+                                isComplex   0; ...
+                                dTypeName   holdDT.Name }
+%% create outRec record
+%assign outLabel = LibBlockOutputSignal(OUTPORT, "outIdx", "", "0")
+%createrecord outRec { label     outLabel; ...
+                       dTypeRec  outDT; ...
+                       isComplex 0 }
+%%
+const boolean_T *inputA =  %<LibBlockInputSignalAddr(INPORT_A, "", "", 0)>;
+const boolean_T *inputB =  %<LibBlockInputSignalAddr(INPORT_B, "", "", 0)>;
+%if (outMinIndx)
+  int32_T *outIndxPtr = %<LibBlockOutputSignalAddr(OUTPORT, "", "", 0)>;
+  %if outNearbyVal
+	%assign outLabel2 = LibBlockOutputSignal(OUTPORT+1, "outIdx2", "", "0")
+    %assign outDT2     = FixPt_GetOutputDataType(OUTPORT+1)
+	%createrecord outRec2 { label     outLabel2; ...
+						   dTypeRec  outDT2; ...
+						   isComplex 0 }
+  %endif
+%endif
+  %assign pDef = 1
+  %assign qDef = 1
+%if (isROI && outMinIndx) 
+	%assign ROIDTypeName  = LibBlockInputSignalDataTypeName(INPORT_B+1,"")
+	const %<ROIDTypeName> *inROI = %<LibBlockInputSignalAddr(INPORT_B+1, "", "", 0)>;
+	const int_T x  = (int_T)(inROI[0]);
+	const int_T y  = (int_T)(inROI[1]);
+	const int_T dx = (int_T)(inROI[2]);
+	const int_T dy = (int_T)(inROI[3]);
+	const int_T endRowIdx = x + dx - %<rowsB-1>;
+	const int_T endColIdx = y + dy - %<colsB-1>;
+%endif
+   %if (isROI && outMinIndx)
+	if (   (x < 0) || (x > %<rowsA-rowsB>)
+		|| (y < 0) || (y > %<colsA-colsB>)
+		|| (dx < 0)|| ((x+dx) > %<rowsA>)
+		|| (dy < 0)|| ((y+dy) > %<colsA>)) {
+	   outIndxPtr[0] = -1;
+	   outIndxPtr[1] = -1;
+	   %if (outNearbyVal)
+	     %<LibBlockOutputSignal(OUTPORT+2, "", "", 0)> = false; /* indicates if neighboring values go out of range or not */
+	   %endif
+	} else {
+   %endif
+   %if (outMinIndx)
+     %<accumRec3.dTypeName> %<accumRec3.label>=0;  
+   %endif
+   %<holdIntRec.dTypeName> %<holdIntRec.label>=1; 
+   %if (outMinIndx || performLogSearch)
+       int_T flag = 0;
+   %endif   
+   %if performLogSearch
+      int_T p;
+     %if (isROI && outMinIndx)
+      int_T midIdxR = x + (endRowIdx-x)/2;
+      int_T midIdxC = y + (endColIdx-y)/2;
+      int_T rangeR = (((endRowIdx-x-1)%2) != 0) ? (int_T)((endRowIdx-x-1)/2) + 1 : (endRowIdx-x-1)/2; /* ceil((endRowIdx-x-1)/2); */
+      int_T rangeC = (((endColIdx-y-1)%2) != 0) ? (int_T)((endColIdx-y-1)/2) + 1 : (endColIdx-y-1)/2; /* ceil((endRowIdx-x-1)/2); */
+      int_T range  = (rangeR < rangeC) ? rangeR : rangeC;
+      int_T delta =  (int_T)(range/2) + 1;
+      while (delta > 0) {
+		int_T iy = ((midIdxC - delta) < y) ? y : midIdxC - delta;
+		int_T ix = ((midIdxR - delta) < x) ? x : midIdxR - delta;
+     %else
+      int_T midIdxR = %<numRowsYFull/2>;
+      int_T midIdxC = %<numColsYFull/2>; 
+      int_T rangeR = (%<(numRowsYFull-1)/2> != 0) ? (int_T)(%<(numRowsYFull-1)/2>) + 1 : %<(numRowsYFull-1)/2>; /* ceil((endRowIdx-x-1)/2); */
+      int_T rangeC = (%<(numColsYFull-1)/2> != 0) ? (int_T)(%<(numColsYFull-1)/2>) + 1 : %<(numColsYFull-1)/2>; /* ceil((endRowIdx-x-1)/2); */
+      int_T range  = (rangeR < rangeC) ? rangeR : rangeC;
+      int_T delta =  (int_T)(range/2) + 1;
+      while (delta > 0) {
+		int_T iy = ((midIdxC - delta) < 0) ? 0: midIdxC - delta;
+		int_T ix = ((midIdxR - delta) < 0) ? 0: midIdxR - delta;
+     %endif
+		int_T colPts = 3;
+		p = iy;
+		while (colPts--) {
+			int_T rowPts = 3;
+			int_T q = ix;
+			while (rowPts--) {
+                   	      int_T ind_col_A = %<rowsA>*p;
+   %else
+     %if needPForLoop
+      int_T p;
+      %if (stry == "0")
+        int_T ind_col_A1 = 0;
+      %else
+        int_T ind_col_A1 = %<rowsA>*%<stry>;
+      %endif
+      %if (!outMinIndx)  && (!isOutScalar)
+       %if (stry == "0")
+         int_T outIdx1     = 0;  
+       %else
+         int_T outIdx1     = %<stry>*%<strEndRowIdx>;
+       %endif
+       %if needQForLoop && (strx != 0)
+           outIdx1 += %<strx>;
+       %endif  
+      %endif
+      for (p = %<stry>; p < %<strEndColIdx>; p++) { 
+          %if (!outMinIndx) && (!isOutScalar)
+	        int_T outIdx = outIdx1;
+          %endif
+     %else
+     {
+          %assign pDef = 0
+          %if (!outMinIndx) && (!isOutScalar)
+            int_T outIdx = 0;
+          %endif
+     %endif
+     %if needQForLoop
+	  int_T q;
+          for (q = %<strx>; q < %<strEndRowIdx>; q++) {
+     %else
+          %assign qDef = 0
+     %endif
+    %if pDef
+      int_T ind_col_A = ind_col_A1;
+    %else
+      int_T ind_col_A = 0;
+    %endif
+   %endif
+	%<accumRec2.dTypeName> %<accumRec2.label> = 0;
+	int_T indxB = 0;
+	int_T m;
+        for (m = 0; m < %<colsB>; m++) {
+	    int_T n;
+	    %if (!scalarA)
+                %if (qDef)
+                int_T indxA = q + ind_col_A;   /* index for input A */
+                %else
+                int_T indxA = ind_col_A;   /* index for input A */
+                %endif
+	    %endif
+            for (n = 0; n < %<rowsB>; n++) {
+	    if (inputA[indxA] != inputB[indxB++]) {
+    	    %<DSPFixptLibPlusEquals(accumRec2, holdIntRec, rndSatRec)>\
+	    }
+	    %if (!scalarA)
+	      indxA++;
+	    %endif	    
+          }
+	    ind_col_A += %<rowsA>;
+        }
+	%if (outMinIndx || performLogSearch)
+	  if (flag == 0) {
+	  %<DSPFixptLibEquals(accumRec3, accumRec2, rndSatRec)>\
+            %if qDef
+              outIndxPtr[0] =   q%<strmx>;
+            %else
+              outIndxPtr[0] =   %<strx>;
+            %endif
+            %if pDef
+              outIndxPtr[1] =   p%<strmy>;
+            %else
+              outIndxPtr[1] =   %<stry>;
+            %endif
+	    flag = 1;
+	  } else {
+	    if (%<accumRec2.label> < %<accumRec3.label>) {
+	      %<DSPFixptLibEquals(accumRec3, accumRec2, rndSatRec)>\
+                %if qDef
+                  outIndxPtr[0] =   q%<strmx>;
+                %else
+                  outIndxPtr[0] =   %<strx>;
+                %endif
+                %if pDef
+                  outIndxPtr[1] =   p%<strmy>;
+                %else
+                  outIndxPtr[1] =   %<stry>;
+                %endif
+	      }
+	}
+	%if performLogSearch
+	    q += delta;
+            while ((rowPts > 0) && (q >= %<strEndRowIdx>)) q--;
+	 }
+	  p += delta;
+          while ((colPts > 0) && (p >= %<strEndColIdx>)) p--;
+	 }
+	 midIdxC = outIndxPtr[1]%<strpy>;
+	 midIdxR = outIndxPtr[0]%<strpx>;
+	delta--;
+	}			  
+	%endif
+	%else
+	%% yptr[outIdx] = sum2;        
+	/* Store the computed SAD value in output */
+	    %<DSPFixptLibEquals(outRec, accumRec2, rndSatRec)>\
+            %if ((qDef || pDef) && (!isOutScalar))
+	    outIdx++; 
+            %endif
+	%endif
+	%if (!performLogSearch)
+        %if needQForLoop
+        }
+        %endif
+       %if needPForLoop 
+        ind_col_A1 += %<rowsA>;        
+        %if (!outMinIndx)  && (!isOutScalar)
+          outIdx1    += %<strEndRowIdx>;
+        %endif
+      %endif        
+    }
+    %endif
+  %if (outNearbyVal && outMinIndx)
+  {
+	/* In this case we also want to output nearby pixels of the minimum value */ 
+	int_T startIdxC = outIndxPtr[1]-%<halfSizeNearbyMtrx>%<strpy>;
+	int_T startIdxR = outIndxPtr[0]-%<halfSizeNearbyMtrx>%<strpx>;
+	int_T outIdx2=0;
+	int_T p;
+        int_T ind_col_A1 = %<rowsA>*startIdxC;	
+	%<LibBlockOutputSignal(OUTPORT+2, "", "", 0)> = true; /* indicates if neighboring values go out of range or not */
+	for (p = startIdxC; p <  (startIdxC+%<sizeNearbyMtrx>); p++) {
+		int_T q;
+		for (q = startIdxR; q < (startIdxR+%<sizeNearbyMtrx>); q++) {
+			/* store in the appropriate value */ 
+			%<accumRec2.dTypeName> %<accumRec2.label> = 0;
+                        if ((p >= %<stry>) && (q >= %<strx>) && (p < %<strEndColIdx>) && (q < %<strEndRowIdx>)) {
+				int_T ind_col_A = ind_col_A1;
+				int_T indxB = 0;
+				int_T m;
+				for (m = 0; m < %<colsB>; m++) {
+				    int_T n;
+				    int_T indxA = q + ind_col_A; 
+					for (n = 0; n < %<rowsB>; n++) {
+				        if (inputA[indxA++] != inputB[indxB++]) {
+    				        %<DSPFixptLibPlusEquals(accumRec2, holdIntRec, rndSatRec)>\
+				        }
+					}
+					ind_col_A += %<rowsA>;
+				}
+			} else {
+				/* out of bounds, store zero. */
+				%<LibBlockOutputSignal(OUTPORT+2, "", "", 0)> = false; /* indicates if neighboring values go out of range or not */
+			}
+			%<DSPFixptLibEquals(outRec2, accumRec2, rndSatRec)>\
+			outIdx2++; 
+		}
+		ind_col_A1 += %<rowsA>;		
+ 	}
+  }
+  %endif
+   %if (isROI && outMinIndx)
+   }
+   %endif
+%endfunction %%
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Subfunction: FltPtInlineCode
+%%
+%% FLOATING POINT CODE GENERATION             
+%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%
+%function FltPtInlineCode(block) Output
+%%
+    %% Perform 2d SAD
+  %assign pDef = 1
+  %assign qDef = 1
+    %assign str = (dtypeA == "real32_T") ? "F" : ""
+    %assign str1 = (dtypeA == "real32_T") ? "32" : ""
+    %assign dtype     = LibBlockOutputSignalDataTypeName(OUTPORT,"")
+	%if (isROI && outMinIndx)
+	    %assign ROIDTypeName  = LibBlockInputSignalDataTypeName(INPORT_B+1,"")
+	    const %<ROIDTypeName> *inROI = %<LibBlockInputSignalAddr(INPORT_B+1, "", "", 0)>; /* Get the ROI values from input port */
+		const int_T x  = (int_T)(inROI[0]);
+		const int_T y  = (int_T)(inROI[1]);
+		const int_T dx = (int_T)(inROI[2]);
+		const int_T dy = (int_T)(inROI[3]);
+		const int_T endRowIdx = x + dx - %<rowsB-1>; /* x+dx + (Number of rows of template-1) */
+		const int_T endColIdx = y + dy - %<colsB-1>; /* y+dy + (Number of columns of template-1) */
+	%endif
+	%if (outMinIndx)
+	  int32_T *outIndxPtr = %<LibBlockOutputSignalAddr(OUTPORT, "", "", 0)>;
+	%endif
+   %if (isROI && outMinIndx)
+	if (    (x < 0) || (x > %<rowsA-rowsB>)
+		 || (y < 0) || (y > %<colsA-colsB>)
+	     || (dx < 0)|| ((x+dx) > %<rowsA>)
+	     || (dy < 0)|| ((y+dy) > %<colsA>)) {
+	   outIndxPtr[0] = -1;
+	   outIndxPtr[1] = -1;
+	   %if (outNearbyVal)
+	     %<LibBlockOutputSignal(OUTPORT+2, "", "", 0)> = false; /* indicates if neighboring values go out of range or not */
+	   %endif
+	} else {
+   %endif
+    const %<dtypeA> *inputA = %<LibBlockInputSignalAddr(INPORT_A, "", "", 0)>;
+    const %<dtypeB> *inputB = %<LibBlockInputSignalAddr(INPORT_B, "", "", 0)>;
+   %if (outMinIndx)
+      real%<str1>_T sum3= 0.0%<str>; /* holds the minimum value */
+   %else
+      %<dtype> *yptr = %<LibBlockOutputSignalAddr(OUTPORT, "", "", 0)>;
+   %endif
+	%if (outMinIndx || performLogSearch)
+	   int_T flag = 0;
+	%endif	
+    %if performLogSearch
+        int_T p;
+        %if (isROI && outMinIndx)
+	  int_T midIdxR = x + (endRowIdx-x)/2;
+	  int_T midIdxC = y + (endColIdx-y)/2;
+	  int_T rangeR = (((endRowIdx-x-1)%2) != 0) ? (int_T)((endRowIdx-x-1)/2) + 1 : (endRowIdx-x-1)/2; /* ceil((endRowIdx-x-1)/2); */
+	  int_T rangeC = (((endColIdx-y-1)%2) != 0) ? (int_T)((endColIdx-y-1)/2) + 1 : (endColIdx-y-1)/2; /* ceil((endRowIdx-x-1)/2); */
+	  int_T range  = (rangeR < rangeC) ? rangeR : rangeC;
+          int_T delta =  (int_T)(range/2) + 1;
+          while (delta > 0) {
+		int_T iy = ((midIdxC - delta) < y) ? y : midIdxC - delta;
+		int_T ix = ((midIdxR - delta) < x) ? x : midIdxR - delta;
+        %else
+	  int_T midIdxR = %<numRowsYFull/2>;
+	  int_T midIdxC = %<numColsYFull/2>; 
+          int_T rangeR = (%<(numRowsYFull-1)/2> != 0) ? (int_T)(%<(numRowsYFull-1)/2>) + 1 : %<(numRowsYFull-1)/2>; /* ceil((endRowIdx-x-1)/2); */
+          int_T rangeC = (%<(numColsYFull-1)/2> != 0) ? (int_T)(%<(numColsYFull-1)/2>) + 1 : %<(numColsYFull-1)/2>; /* ceil((endRowIdx-x-1)/2); */
+	  int_T range  = (rangeR < rangeC) ? rangeR : rangeC;
+          int_T delta =  (int_T)(range/2) + 1;
+          while (delta > 0) {
+		int_T iy = ((midIdxC - delta) < 0) ? 0 : midIdxC - delta;
+		int_T ix = ((midIdxR - delta) < 0) ? 0 : midIdxR - delta;
+        %endif
+		int_T colPts = 3;
+		p = iy;
+		while (colPts--) {
+			int_T rowPts = 3;
+			int_T q = ix;
+			while (rowPts--) {
+                   	      int_T ind_col_A = %<rowsA>*p;
+    %else
+         %if needPForLoop
+          int_T p;
+          %if (stry == "0")
+	    int_T ind_col_A1 = 0;
+          %else
+	    int_T ind_col_A1 = %<rowsA>*%<stry>;
+	  %endif
+          %if (!outMinIndx)
+           %if (stry == "0")
+             int_T outIdx1     = 0;  
+           %else
+             int_T outIdx1     = %<stry>*%<strEndRowIdx>;
+           %endif
+           %if needQForLoop && (strx != 0)
+               outIdx1 += %<strx>;
+           %endif  
+          %endif          
+          for (p = %<stry>; p < %<strEndColIdx>; p++) { 
+              %if (!outMinIndx)
+	            int_T outIdx = outIdx1;
+              %endif
+         %else
+         {
+              %assign pDef = 0
+              %if (!outMinIndx)
+	            int_T outIdx = 0;
+              %endif
+         %endif
+         %if needQForLoop
+	      int_T q;
+              for (q = %<strx>; q < %<strEndRowIdx>; q++) {
+         %else
+              %assign qDef = 0
+         %endif
+        %if pDef
+	  int_T ind_col_A = ind_col_A1;
+        %else
+          int_T ind_col_A = 0;
+        %endif
+    %endif
+            real%<str1>_T sum2 = 0.0%<str>; 
+	    int_T indxB = 0;
+	    int_T m;
+            for (m = 0; m < %<colsB>; m++) {
+	        int_T n;
+                %if (qDef)
+                  int_T indxA = q + ind_col_A;   /* index for input A */
+                %else
+                  int_T indxA = ind_col_A;   /* index for input A */
+                %endif
+                for (n = 0; n < %<rowsB>; n++) {
+	            const %<dtypeA> valA = inputA[indxA++];
+		    const %<dtypeB> valB = inputB[indxB++];
+		    /* accumulate sum of absolute differences */
+                    sum2 += (valA>valB) ? valA-valB : valB-valA; 
+                }
+	          ind_col_A += %<rowsA>;
+            }
+	    %if (outMinIndx || performLogSearch)
+	      /* Store the new minimum and get the corresponding indices. */
+	      if (flag == 0) {
+                  sum3 = sum2;
+                %if qDef
+                  outIndxPtr[0] =   q%<strmx>;
+                %else
+                  outIndxPtr[0] =   %<strx>;
+                %endif
+                %if pDef
+                  outIndxPtr[1] =   p%<strmy>;
+                %else
+                  outIndxPtr[1] =   %<stry>;
+                %endif
+		  flag = 1;
+	      } else {
+	          if (sum2 < sum3) {
+             	       sum3 = sum2;
+                        %if qDef
+                          outIndxPtr[0] =   q%<strmx>;
+                        %else
+                          outIndxPtr[0] =   %<strx>;
+                        %endif
+                        %if pDef
+                          outIndxPtr[1] =   p%<strmy>;
+                        %else
+                          outIndxPtr[1] =   %<stry>;
+                        %endif
+		   }
+	      }
+	%if performLogSearch
+	 q += delta;
+   	  while ((rowPts > 0) && (q >= %<strEndRowIdx>)) q--;
+	 }
+	 p += delta;
+	  while ((colPts > 0) && (p >= %<strEndColIdx>)) p--;
+	}
+	midIdxC = outIndxPtr[1]%<strpy>;
+	midIdxR = outIndxPtr[0]%<strpx>;
+	delta--;
+	}			  
+	%endif
+	%else
+	    /* Store the SAD values at output pointer. */
+	    yptr[outIdx] = sum2;        
+            %if (qDef || pDef)
+	    outIdx++; 
+            %endif
+	%endif
+	%if (!performLogSearch)
+        %if needQForLoop
+        }
+        %endif
+       %if needPForLoop 
+        ind_col_A1 += %<rowsA>;        
+        %if (!outMinIndx)  && (!isOutScalar)
+          outIdx1    += %<strEndRowIdx>;
+        %endif
+       %endif        
+    }
+    %endif
+	%if (outNearbyVal && outMinIndx)
+	{
+		/* In this case we also want to output nearby pixels of the minimum value */ 
+        %<dtypeA> *yNearVal =  %<LibBlockOutputSignalAddr(OUTPORT+1, "", "", 0)>;
+		int_T startIdxC = outIndxPtr[1]-%<halfSizeNearbyMtrx>%<strpy>;
+		int_T startIdxR = outIndxPtr[0]-%<halfSizeNearbyMtrx>%<strpx>;
+		int_T outIdx1=0;
+		int_T p;
+                int_T ind_col_A1 = %<rowsA>*startIdxC;		
+	    %<LibBlockOutputSignal(OUTPORT+2, "", "", 0)> = true; /* indicates if neighboring values go out of range or not */
+		for (p = startIdxC; p <  (startIdxC+%<sizeNearbyMtrx>); p++) {
+			int_T q;
+			for (q = startIdxR; q < (startIdxR+%<sizeNearbyMtrx>); q++) {
+				real%<str1>_T sum2 = 0.0%<str>; 
+				  if ((p >= %<stry>) && (q >= %<strx>) && (p < %<strEndColIdx>) && (q < %<strEndRowIdx>)) {
+					int_T ind_col_A = ind_col_A1;
+					int_T indxB = 0;
+					int_T m;
+					for (m = 0; m < %<colsB>; m++) {
+					    int_T n;
+					    int_T indxA = q + ind_col_A; 
+						for (n = 0; n < %<rowsB>; n++) {
+							const %<dtypeA> valA = inputA[indxA++];
+							const %<dtypeB> valB = inputB[indxB++];
+							/* accumulate sum of absolute differences */
+							sum2 += (valA>valB) ? valA-valB : valB-valA; 
+						}
+						ind_col_A += %<rowsA>;
+					}
+				    /* Store the SAD values around the minimum SAD value at output. */
+				} else {
+					%<LibBlockOutputSignal(OUTPORT+2, "", "", 0)> = false; /* indicates if neighboring values go out of range or not */
+				}
+				yNearVal[outIdx1++] = sum2;  
+			}
+			ind_col_A1 += %<rowsA>;
+		}
+	}
+	%endif
+   %if (isROI && outMinIndx)
+   }
+   %endif
+%endfunction %%FltPtInlineCode
+
+%function FixPtInlineCode(block) Output
+%% Perform 2d SAD
+%assign boolDT = DataTypes.DataType[tSS_BOOLEAN]
+%createrecord rndSatRec { roundingMode FixPtRoundingMode; ...
+                          overflowMode FixPtSaturationMode}
+%%
+%assign accumDT            = FixPt_GetParameterDataType(ACC_DATA_TYPE, 0, 0)
+%assign accGrndValueOrName = FixPt_GetGroundValueOrNameFromDataTypeRec(accumDT, TLC_FALSE)
+%assign accMultiWord       = FixPt_DataTypeIsMultiWord(accumDT)
+%%
+%% create accRec record
+%assign accumDTName = accumDT.Name
+%assign accumLabel0 = "accum0"
+%assign accumLabel1 = "accum1"
+%createrecord accumRec1 { label     accumLabel1; ...
+                         dTypeRec  accumDT; ...
+                         isComplex 0; ...
+                         dTypeName accumDTName }
+%assign accumLabel2 = "accum2"
+%createrecord accumRec2 { label     accumLabel2; ...
+                         dTypeRec  accumDT; ...
+                         isComplex 0; ...
+                         dTypeName accumDTName }
+%assign accumLabel3 = "accum3"
+%createrecord accumRec3 { label     accumLabel3; ...
+                         dTypeRec  accumDT; ...
+                         isComplex 0; ...
+                         dTypeName accumDTName }
+%assign accumLabel4 = "accum4"
+%createrecord accumRec4 { label     accumLabel4; ...
+                         dTypeRec  accumDT; ...
+                         isComplex 0; ...
+                         dTypeName accumDTName }
+%% create inARec record
+%assign inALabel = LibBlockInputSignal(INPORT_A,"indxA","","0")
+%createrecord inARec { label     inALabel; ...
+                      dTypeRec  inDT_A; ...
+                      isComplex 0 }
+%% create inBRec record
+%assign inBLabel = LibBlockInputSignal(INPORT_B,"indxB","","0")
+%createrecord inBRec { label     inBLabel; ...
+                      dTypeRec  inDT_B; ...
+                      isComplex 0 }
+%% create outRec record
+%assign outLabel = LibBlockOutputSignal(OUTPORT, "outIdx", "", "0")
+%createrecord outRec { label     outLabel; ...
+                       dTypeRec  outDT; ...
+                       isComplex 0 }
+%%
+%if (outMinIndx)
+  int32_T *outIndxPtr = %<LibBlockOutputSignalAddr(OUTPORT, "", "", 0)>;
+  %if outNearbyVal
+	%assign outLabel2 = LibBlockOutputSignal(OUTPORT+1, "outIdx2", "", "0")
+    %assign outDT2     = FixPt_GetOutputDataType(1)
+	%createrecord outRec2 { label     outLabel2; ...
+						   dTypeRec  outDT2; ...
+						   isComplex 0 }
+  %endif
+%endif
+%%
+  %assign pDef = 1
+  %assign qDef = 1
+%if (isROI && outMinIndx)
+	%assign ROIDTypeName  = LibBlockInputSignalDataTypeName(INPORT_B+1,"")
+	const %<ROIDTypeName> *inROI = %<LibBlockInputSignalAddr(INPORT_B+1, "", "", 0)>;
+	const int_T x  = (int_T)(inROI[0]);
+	const int_T y  = (int_T)(inROI[1]);
+	const int_T dx = (int_T)(inROI[2]);
+	const int_T dy = (int_T)(inROI[3]);
+	const int_T endRowIdx = x + dx - %<rowsB-1>;
+	const int_T endColIdx = y + dy - %<colsB-1>;
+%endif
+   %if (isROI && outMinIndx)
+	if (   (x < 0) || (x > %<rowsA-rowsB>)
+		|| (y < 0) || (y > %<colsA-colsB>)
+		|| (dx < 0)|| ((x+dx) > %<rowsA>)
+		|| (dy < 0)|| ((y+dy) > %<colsA>)) {
+	   outIndxPtr[0] = -1;
+	   outIndxPtr[1] = -1;
+	   %if (outNearbyVal)
+	     %<LibBlockOutputSignal(OUTPORT+2, "", "", 0)> = false; /* indicates if neighboring values go out of range or not */
+	   %endif
+	} else {
+   %endif
+   %if (outMinIndx)
+     %<accumRec3.dTypeName> %<accumRec3.label> = %<accGrndValueOrName>;
+   %endif
+	%if (outMinIndx || performLogSearch)
+	   int_T flag = 0;
+	%endif   
+   %if performLogSearch
+   int_T p;
+     %if (isROI && outMinIndx)
+      int_T midIdxR = x + (endRowIdx-x)/2;
+      int_T midIdxC = y + (endColIdx-y)/2;
+      int_T rangeR = (((endRowIdx-x-1)%2) != 0) ? (int_T)((endRowIdx-x-1)/2) + 1 : (endRowIdx-x-1)/2; /* ceil((endRowIdx-x-1)/2); */
+      int_T rangeC = (((endColIdx-y-1)%2) != 0) ? (int_T)((endColIdx-y-1)/2) + 1 : (endColIdx-y-1)/2; /* ceil((endRowIdx-x-1)/2); */
+      int_T range  = (rangeR < rangeC) ? rangeR : rangeC;
+      int_T delta =  (int_T)(range/2) + 1;
+      while (delta > 0) {
+		int_T iy = ((midIdxC - delta) < y) ? y : midIdxC - delta;
+		int_T ix = ((midIdxR - delta) < x) ? x : midIdxR - delta;
+     %else
+      int_T midIdxR = %<numRowsYFull/2>;
+      int_T midIdxC = %<numColsYFull/2>; 
+      int_T rangeR = (%<(numRowsYFull-1)/2> != 0) ? (int_T)(%<(numRowsYFull-1)/2>) + 1 : %<(numRowsYFull-1)/2>; /* ceil((endRowIdx-x-1)/2); */
+      int_T rangeC = (%<(numColsYFull-1)/2> != 0) ? (int_T)(%<(numColsYFull-1)/2>) + 1 : %<(numColsYFull-1)/2>; /* ceil((endRowIdx-x-1)/2); */
+      int_T range  = (rangeR < rangeC) ? rangeR : rangeC;
+      int_T delta =  (int_T)(range/2) + 1;
+      while (delta > 0) {
+		int_T iy = ((midIdxC - delta) < 0) ? 0: midIdxC - delta;
+		int_T ix = ((midIdxR - delta) < 0) ? 0: midIdxR - delta;
+     %endif
+		int_T colPts = 3;
+		p = iy;
+		while (colPts--) {
+			int_T rowPts = 3;
+			int_T q = ix;
+			while (rowPts--) {
+                   	      int_T ind_col_A = %<rowsA>*p;
+   %else
+         %if needPForLoop
+          int_T p;
+          %if (stry == "0")
+	    int_T ind_col_A1 = 0;
+          %else
+	    int_T ind_col_A1 = %<rowsA>*%<stry>;
+	  %endif
+          %if (!outMinIndx)  && (!isOutScalar)
+           %if (stry == "0")
+             int_T outIdx1     = 0;  
+           %else
+             int_T outIdx1     = %<stry>*%<strEndRowIdx>;
+           %endif
+           %if needQForLoop && (strx != 0)
+               outIdx1 += %<strx>;
+           %endif  
+          %endif
+          for (p = %<stry>; p < %<strEndColIdx>; p++) { 
+              %if (!outMinIndx)  && (!isOutScalar)
+	            int_T outIdx = outIdx1;
+              %endif
+         %else
+         {
+              %assign pDef = 0
+              %if (!outMinIndx)  && (!isOutScalar)
+	            int_T outIdx = 0;
+              %endif
+         %endif
+         %if needQForLoop
+	      int_T q;
+              for (q = %<strx>; q < %<strEndRowIdx>; q++) {
+         %else
+              %assign qDef = 0
+         %endif
+        %if pDef
+	  int_T ind_col_A = ind_col_A1;
+        %else
+          int_T ind_col_A = 0;
+        %endif
+   %endif
+	%<accumRec2.dTypeName> %<accumRec2.label> = %<accGrndValueOrName>;
+	int_T indxB = 0;
+	int_T m;
+        for (m = 0; m < %<colsB>; m++) {
+	    int_T n;
+	    %if (!scalarA)
+                  %if (qDef)
+                    int_T indxA = q + ind_col_A;   /* index for input A */
+                  %else
+                    int_T indxA = ind_col_A;   /* index for input A */
+                  %endif
+	    %endif
+            for (n = 0; n < %<rowsB>; n++) {
+              %if accMultiWord
+                %<boolDT.NativeType> isAccumNegative;
+              %endif
+		%<accumRec1.dTypeName> %<accumRec1.label>,%<accumRec4.label>;
+		%<DSPFixptLibEquals(accumRec1, inARec, rndSatRec)>\
+		%<DSPFixptLibEquals(accumRec4, inBRec, rndSatRec)>\
+		%<DSPFixptLibMinusEquals(accumRec1, accumRec4, rndSatRec)>\
+		/* accumulate sum of absolute differences */
+                %if accMultiWord
+                  %<FixPt_MultiWordCompLT("isAccumNegative", boolDT, accumRec1.label, accumDT, accGrndValueOrName, accumDT, "Simplest", "Saturate")>\
+                  if (isAccumNegative) {
+                %else
+                  if (%<accumRec1.label> < %<accGrndValueOrName>) {
+                %endif
+		    %<DSPFixptLibMinusEquals(accumRec2, accumRec1, rndSatRec)>\
+		} else {
+		    %<DSPFixptLibPlusEquals(accumRec2, accumRec1, rndSatRec)>\
+		}
+		%if (!scalarA)
+		  indxA++;
+		%endif
+		indxB++;
+            }
+            ind_col_A += %<rowsA>;
+        }
+		%if (outMinIndx || performLogSearch)
+		  if (flag == 0) {
+				%<DSPFixptLibEquals(accumRec3, accumRec2, rndSatRec)>\
+                                %if qDef
+                                  outIndxPtr[0] =   q%<strmx>;
+                                %else
+                                  outIndxPtr[0] =   %<strx>;
+                                %endif
+                                %if pDef
+                                  outIndxPtr[1] =   p%<strmy>;
+                                %else
+                                  outIndxPtr[1] =   %<stry>;
+                                %endif
+				flag = 1;
+		  } else {
+                    %if accMultiWord
+                      %<boolDT.NativeType> isAcc2LTAcc3;
+                      
+                      %<FixPt_MultiWordCompLT("isAcc2LTAcc3", boolDT, accumRec2.label, accumDT, accumRec3.label, accumDT, "Simplest", "Saturate")>\
+                      if (isAcc2LTAcc3) {
+                    %else
+                      if (%<accumRec2.label> < %<accumRec3.label>) {
+                    %endif
+					%<DSPFixptLibEquals(accumRec3, accumRec2, rndSatRec)>\
+                                %if qDef
+                                  outIndxPtr[0] =   q%<strmx>;
+                                %else
+                                  outIndxPtr[0] =   %<strx>;
+                                %endif
+                                %if pDef
+                                  outIndxPtr[1] =   p%<strmy>;
+                                %else
+                                  outIndxPtr[1] =   %<stry>;
+                                %endif
+			}
+		  }
+	%if performLogSearch
+				q += delta;
+				while ((rowPts > 0) && (q >= %<strEndRowIdx>)) q--;
+			}
+			p += delta;
+			while ((colPts > 0) && (p >= %<strEndColIdx>)) p--;
+		}
+		midIdxC = outIndxPtr[1]%<strpy>;
+		midIdxR = outIndxPtr[0]%<strpx>;
+		delta--;
+	}			  
+	%endif
+		%else
+			%% yptr[outIdx] = sum2;        
+			/* Store the computed SAD value in output */
+			%<DSPFixptLibEquals(outRec, accumRec2, rndSatRec)>\
+                        %if (qDef || pDef)  && (!isOutScalar)
+			outIdx++; 
+                        %endif
+		%endif
+    %if (!performLogSearch)
+       %if needQForLoop
+        }
+       %endif
+       %if needPForLoop 
+        ind_col_A1 += %<rowsA>;        
+        %if (!outMinIndx)  && (!isOutScalar)
+          outIdx1    += %<strEndRowIdx>;
+        %endif
+       %endif
+    }
+    %endif
+  %if (outNearbyVal && outMinIndx)
+  {
+	/* In this case we also want to output nearby pixels of the minimum value */ 
+	int_T startIdxC = outIndxPtr[1]-%<halfSizeNearbyMtrx>%<strpy>;
+	int_T startIdxR = outIndxPtr[0]-%<halfSizeNearbyMtrx>%<strpx>;
+	int_T outIdx2=0;
+	int_T p;
+        int_T ind_col_A1 = %<rowsA>*startIdxC;
+	%<LibBlockOutputSignal(OUTPORT+2, "", "", 0)> = true; /* indicates if neighboring values go out of range or not */
+	for (p = startIdxC; p <  (startIdxC+%<sizeNearbyMtrx>); p++) {
+		int_T q;
+		for (q = startIdxR; q < (startIdxR+%<sizeNearbyMtrx>); q++) {
+			/* store in the appropriate value */ 
+			%<accumRec2.dTypeName> %<accumRec2.label> = %<accGrndValueOrName>;
+			if ((p >= %<stry>) && (q >= %<strx>) && (p < %<strEndColIdx>) && (q < %<strEndRowIdx>)) {
+				int_T ind_col_A = ind_col_A1;
+				int_T indxB = 0;
+				int_T m;
+				for (m = 0; m < %<colsB>; m++) {
+                                  int_T n;
+                                  int_T indxA = q + ind_col_A; 
+                                  for (n = 0; n < %<rowsB>; n++) {
+                                    %if accMultiWord
+                                      %<boolDT.NativeType> isAccumNegative;
+                                    %endif
+                                    %<accumRec1.dTypeName> %<accumRec1.label>,%<accumRec4.label>;
+                                    %<DSPFixptLibEquals(accumRec1, inARec, rndSatRec)>\
+                                    %<DSPFixptLibEquals(accumRec4, inBRec, rndSatRec)>\
+                                    %<DSPFixptLibMinusEquals(accumRec1, accumRec4, rndSatRec)>\
+                                    /* accumulate sum of absolute differences */
+                                    %% sum += (inputA[indxA]>inputB[indxB] ? inputA[indxA]-inputB[indxB] : inputB[indxB]-inputA[indxA]);           
+                                  %if accMultiWord
+                                    %<FixPt_MultiWordCompLT("isAccumNegative", boolDT, accumRec1.label, accumDT, accGrndValueOrName, accumDT, "Simplest", "Saturate")>\
+                                    if (isAccumNegative) {
+                                  %else
+                                    if (%<accumRec1.label> < %<accGrndValueOrName>) {
+                                  %endif
+                                      %<DSPFixptLibMinusEquals(accumRec2, accumRec1, rndSatRec)>\
+                                    } else {
+                                      %<DSPFixptLibPlusEquals(accumRec2, accumRec1, rndSatRec)>\
+                                    }
+                                    indxB++;indxA++;
+                                  }
+                                  ind_col_A += %<rowsA>;
+                                }
+			} else {
+				/* out of bounds, store zero. */
+				%<LibBlockOutputSignal(OUTPORT+2, "", "", 0)> = false; /* indicates if neighboring values go out of range or not */
+			}
+			%<DSPFixptLibEquals(outRec2, accumRec2, rndSatRec)>\
+			outIdx2++; 
+		}
+		ind_col_A1 += %<rowsA>;
+ 	}
+  }
+  %endif
+   %if (isROI && outMinIndx)
+   }
+   %endif
+%endfunction %%FixPtInlineCode
+
+%% [EOF] svip2dsad.tlc

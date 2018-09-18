@@ -1,0 +1,90 @@
+{
+    "imageLabeler":
+    {
+        "inputs":
+        [
+            {"mutuallyExclusiveGroup":
+                [
+                    {"name":"imageFolder", "kind":"optional", "type":["folderpath"]},
+                    {"name":"imgDatastore", "kind":"optional", "type":"matlab.io.datastore.ImageDatastore"},
+                    {"name":"sessionFile", "kind":"optional", "type":["filepath=*.mat"]}
+                ]
+            }
+        ]
+    },
+
+
+"evaluateSemanticSegmentation":
+{
+       "inputs":
+       [
+    {"name":"pxdsResults","kind":"required","type":"matlab.io.datastore.PixelLabelDatastore"},
+    {"name":"pxdsTruth","kind":"required","type":"matlab.io.datastore.PixelLabelDatastore"},
+    {"name":"Metrics","kind":"namevalue","type":"choices={'all','accuracy','global-accuracy','iou','weighted-iou','bfscore'}"},
+    {"name":"Verbose","kind":"namevalue","type":"choices={0,1}"}
+  ],
+  "outputs":
+  [
+    {"name":"metrics","type":"semanticSegmentationMetrics"}
+       ]
+},
+
+"groundTruth":
+{
+       "inputs":
+       [
+    {"name": "dataSource", "kind": "required", "type": "groundTruthDataSource"},
+    {"name": "labelDefs", "kind": "required", "type": "table"},
+    {"name": "labelData", "kind": "required", "type": [["table"],["timetable"]]}
+       ]
+},
+
+"groundTruthDataSource":
+{
+	"inputs":
+	[
+	    {"mutuallyExclusiveGroup":
+             [
+                 {"name":"videoFileName", "kind":"required", "type":[["filepath=*.3g2,*.3gp,*.avi,*.dv,*.flc,*.m2v,*.m4v,*.mj2,*.mov,*.mp4,*.mpg,*.mts,*.ts"],["matlabpath=*.avi,*.mp4"]]},
+                 [
+                     {"name":"imageSeq", "kind":"required","type":[["string"],["folderpath"]]},
+                     {"name":"timeStamps", "kind":"positional", "type":[["double"],["duration"]]}
+                 ],
+                 {"name":"imageFiles","kind":"required","type":[["cellstr"]]}
+             ]
+	    }
+	]
+},
+
+"objectDetectorTrainingData":
+{
+	"inputs":
+	[
+            {"name": "gTruth", "kind": "required", "type": "groundTruth"},
+            {"name": "SamplingFactor", "kind": "namevalue", "type": ["numeric","scalar","integer","positive"]},
+            {"name": "WriteLocation", "kind": "namevalue", "type": "folderpath"},
+            {"name": "ImageFormat", "kind": "namevalue", "type": "choices={'bmp','j2c','j2k','jp2','jpf','jpx','jpg','jpeg','png','tif','tiff'}"},
+            {"name": "NamePrefix", "kind": "namevalue", "type": [["char"],["string"]]},
+            {"name": "Verbose", "kind": "namevalue", "type": "logical"}
+	]
+},
+
+"pcread":
+{
+  "inputs":
+  [
+    {"name":"filename", "kind":"required", "type":"filepath=*.ply,*.pcd"}           
+  ]
+},
+
+"pcwrite":
+{
+  "inputs":
+  [
+    {"name":"ptCloud", "kind":"required", "type":"pointCloud"},    
+    {"name":"filename", "kind":"required", "type":[["filepath=*.ply,*.pcd"],["char"], ["string"]]},           
+    {"name":"Encoding", "kind":"namevalue", "type":"choices={'ascii','binary','compressed'}"}
+  ]
+}
+
+}

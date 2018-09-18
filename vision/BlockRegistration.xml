@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!--
+ * BlockRegistration.xml 
+ * Abstract: 
+ *  Register coreblocks
+ *  To be shipped with Computer Vision System Toolbox
+ *
+ * Copyright 2015 The MathWorks, Inc.
+ -->
+
+<ModuleRegistry modname="visionscopes"
+                modulePath="$MATLABROOT/bin/$ARCH"
+                registryVersion="1.0"
+                >
+<BlockRegistration block_type_str = "VideoViewer" />
+
+</ModuleRegistry>

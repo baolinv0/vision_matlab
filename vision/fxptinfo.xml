@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!--    -->
+<!-- Copyright 2007-2016 The MathWorks, Inc. -->
+<product name="Fixed-Point Designer">
+<map mask="2-D Autocorrelation"                class="Simulink.SFunction"           value="visionautoscaler.Autocorr2DAutoscaler"/>          <!-- vipstatistics/2-D Autocorrelation -->
+<map mask="2-D Convolution"                    class="Simulink.SFunction"           value="visionautoscaler.ConvCorr2DAutoscaler"/>          <!-- vipfilter/2-D Convolution -->
+<map mask="2-D Correlation"                    class="Simulink.SFunction"           value="visionautoscaler.ConvCorr2DAutoscaler"/>          <!-- vipstatistics/2-D Correlation -->
+<map mask="2-D DCT"                            class="Simulink.SFunction"           value="dvautoscaler.DCT_FFT_Autoscaler"/>                <!-- viptransforms/2-D DCT -->
+<map mask="2-D FFT"                            class="Simulink.SFunction"           value="dvautoscaler.DCT_FFT_Autoscaler"/>                <!-- viptransforms/2-D FFT -->
+<map mask="2-D FIR Filter"                     class="Simulink.SFunction"           value="visionautoscaler.FIRFilter2DAutoscaler"/>         <!-- vipfilter/2-D FIR Filter -->
+<map mask="2-D Histogram"                      class="Simulink.SFunction"           value="dvautoscaler.SPCUniDTAutoSignAutoscaler"/>        <!-- visionstatistics/2-D Histogram -->
+<map mask="Image Pad"                          class="Simulink.SFunction"           value="dvautoscaler.SPCSharedInputsDTAutoscaler"/>       <!-- viputilities/Image Pad -->
+<map mask="2-D IDCT"                           class="Simulink.SFunction"           value="dvautoscaler.DCT_FFT_Autoscaler"/>                <!-- viptransforms/2-D IDCT -->
+<map mask="2-D IFFT"                           class="Simulink.SFunction"           value="dvautoscaler.DCT_FFT_Autoscaler"/>                <!-- viptransforms/2-D IFFT -->
+<map mask="2D IFFT"                            class="Simulink.SFunction"           value="dvautoscaler.DspEntityAutoscaler"/>               <!-- viptransforms/2D IFFT -->
+<map mask="2DIFFT"                             class="Simulink.SFunction"           value="dvautoscaler.DspEntityAutoscaler"/>               <!-- viptransforms/2DIFFT -->
+<map mask="2-D Maximum"                        class="Simulink.SFunction"           value="dvautoscaler.SPCUniDTAutoSignAutoscaler"/>        <!-- visionstatistics/2-D Maximum -->
+<map mask="2-D Mean"                           class="Simulink.SFunction"           value="dvautoscaler.SPCUniDTAutoSignAutoscaler"/>        <!-- visionstatistics/2-D Mean -->
+<map mask="2-D Median"                         class="Simulink.SFunction"           value="dvautoscaler.DspEntityAutoscaler"/>               <!-- vipobslib/2-D Median -->
+<map mask="2-D Minimum"                        class="Simulink.SFunction"           value="dvautoscaler.SPCUniDTAutoSignAutoscaler"/>        <!-- visionstatistics/2-D Minimum -->
+<map mask="2-D Variance"                       class="Simulink.SFunction"           value="dvautoscaler.VarianceAutoscaler"/>                <!-- visionstatistics/2-D Variance -->
+<map mask="Autothreshold"                      class="Simulink.SFunction"           value="visionautoscaler.AutothresholdAutoscaler"/>       <!-- vipconversions/Autothreshold -->
+<map mask="Blob Analysis"                      class="Simulink.SFunction"           value="visionautoscaler.BlobAutoscaler"/>                <!-- vipstatistics/Blob Analysis -->
+<map mask="block match"                        class="Simulink.SFunction"           value="dvautoscaler.DspEntityAutoscaler"/>               <!-- vipanalysis/Block Matching/block match -->
+<map mask="Compositing"                        class="Simulink.SFunction"           value="dvautoscaler.CompositingAutoscaler"/>               <!-- viptextngfix/Compositing -->
+<map mask="Contrast Adjustment"                class="Simulink.SFunction"           value="visionautoscaler.ContrastAdjustAutoscaler"/>      <!-- vipanalysis/Contrast Adjustment -->
+<map mask="Corner Metric"                      class="Simulink.SFunction"           value="dvautoscaler.CornerMetricAutoscaler"/>               <!-- vipanalysis/Corner Detection/Corner Metric -->
+<map mask="Deinterlacing"                      class="Simulink.SFunction"           value="visionautoscaler.DeinterlacingAutoscaler"/>       <!-- vipanalysis/Deinterlacing -->
+<map mask="Demosaic"                           class="Simulink.SFunction"           value="visionautoscaler.DemosaicAutoscaler"/>            <!-- vipconversions/Demosaic -->
+<map mask="Draw Markers"                       class="Simulink.SFunction"           value="visionautoscaler.DrawShapeMarkerAutoscaler"/>     <!-- viptextngfix/Draw Markers -->
+<map mask="Draw Shapes"                        class="Simulink.SFunction"           value="visionautoscaler.DrawShapeMarkerAutoscaler"/>     <!-- viptextngfix/Draw Shapes -->
+<map mask="Edge Detection"                     class="Simulink.SFunction"           value="dvautoscaler.EdgeDetectionAutoscaler"/>               <!-- vipanalysis/Edge Detection -->
+<map mask="Gaussian Pyramid"                   class="Simulink.SFunction"           value="visionautoscaler.PyramidAutoscaler"/>             <!-- viptransforms/Gaussian Pyramid -->
+<map mask="Hough Lines"                        class="Simulink.SFunction"           value="dvautoscaler.HoughLinesAutoscaler"/>               <!-- viptransforms/Hough Lines -->
+<map mask="Hough Transform"                    class="Simulink.SFunction"           value="visionautoscaler.HoughAutoscaler"/>               <!-- viptransforms/Hough Transform -->
+<map mask="Median Filter"                      class="Simulink.SFunction"           value="visionautoscaler.MedianFilter2DAutoscaler"/>      <!-- vipanalysis/Median Filter -->
+<map mask="Optical Flow Estimation"            class="Simulink.SFunction"           value="visionautoscaler.OpticalFlowAutoscaler"/>         <!-- vipanalysis/Optical Flow/Optical Flow Estimation -->
+<map mask="Resize"                             class="Simulink.SFunction"           value="visionautoscaler.Resize2DAutoscaler"/>            <!-- vipgeotforms/Resize -->
+<map mask="Rotate"                             class="Simulink.SFunction"           value="visionautoscaler.Rotate2DAutoscaler"/>            <!-- vipgeotforms/Rotate -->
+<map mask="SAD"                                class="Simulink.SFunction"           value="visionautoscaler.SADAutoscaler"/>                 <!-- vipanalysis/SAD -->
+<map mask="Shear"                              class="Simulink.SFunction"           value="visionautoscaler.Shear2DAutoscaler"/>             <!-- vipgeotforms/Shear -->
+<map mask="Template Matching"                  class="Simulink.SFunction"           value="visionautoscaler.TemplateMatchingAutoscaler"/>    <!-- vipanalysis/Template Matching -->
+<map mask="Translate"                          class="Simulink.SFunction"           value="visionautoscaler.Translate2DAutoscaler"/>         <!-- vipgeotforms/Translate -->
+</product>

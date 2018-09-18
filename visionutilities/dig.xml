@@ -1,0 +1,7 @@
+<dig licenseFcn="isVisionBlocksetLicensed">
+    <!-- Copyright 2015 The MathWorks, Inc. -->
+    <action type="dynamic" id="Simulink:MPlayVideoViewer">
+        <generator gateway="visionmenus" function="MPlayVideoViewer" />
+        <domains>Simulink:Model</domains>
+    </action>
+</dig>

@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Copyright 2011-2014 The MathWorks, Inc. -->
+<!-- THIS FILE CONTRIBUTES TO THE MATLAB APPS GALLERY WHICH IS CAREFULLY CURATED -->
+<!-- ADDITIONS AND CHANGES MUST GO THROUGH A DESIGN REVIEW PROCESS WITH SENIOR MANGEMENT -->
+<!-- THIS PROCESS IS MANAGED BY THE MATLAB DESKTOP TEAM. CONSULT THE TOOLSTRIP GUIDELINES TO GET STARTED -->
+<toolset id="vision_toolset" message_catalog="vision:desktop">
+    <tool id="cameraCalibrator">
+        <icon filename="camera_calibrator_16.png" path="+vision/+internal/+calibration/+tool" />
+        <icon filename="camera_calibrator_24.png" path="+vision/+internal/+calibration/+tool" />
+        <callback>cameraCalibrator</callback>
+        <parent_tool id="image_products" toolset_id="apps_toolset" />
+    </tool>
+    <tool id="stereoCameraCalibrator">
+        <icon filename="camera_calibrator_16.png" path="+vision/+internal/+calibration/+tool" />
+        <icon filename="camera_calibrator_24.png" path="+vision/+internal/+calibration/+tool" />
+        <callback>stereoCameraCalibrator</callback>
+        <parent_tool id="image_products" toolset_id="apps_toolset" />
+    </tool>
+    <tool id="ocrTrainer">
+        <icon filename="ocr_trainer_16.png" path="+vision/+internal/+ocr/+tool" />
+        <icon filename="ocr_trainer_24.png" path="+vision/+internal/+ocr/+tool" />
+        <callback>ocrTrainer</callback>
+        <parent_tool id="image_products" toolset_id="apps_toolset" />
+    </tool>
+    <tool id="imageLabeler">
+        <icon filename="image_labeler_16.png" path="+vision/+internal/+imageLabeler/+tool" />
+        <icon filename="image_labeler_24.png" path="+vision/+internal/+imageLabeler/+tool" />
+        <callback>imageLabeler</callback>
+        <parent_tool id="image_products" toolset_id="apps_toolset" />
+    </tool>
+</toolset>
